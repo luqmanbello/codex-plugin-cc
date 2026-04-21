@@ -92,7 +92,16 @@ test("rescue command absorbs continue semantics", () => {
   const runtimeSkill = read("skills/codex-cli-runtime/SKILL.md");
 
   assert.match(rescue, /The final user-visible response must be Codex's output verbatim/i);
-  assert.match(rescue, /allowed-tools:\s*Bash\(node:\*\),\s*AskUserQuestion/);
+  assert.match(rescue, /allowed-tools:\s*Bash\(node:\*\),\s*AskUserQuestion,\s*Agent/);
+  // Regression for #234: `Skill(codex:rescue)` from the main agent recursed
+  // because rescue.md named the routing with ambiguous prose ("Route this
+  // request to the `codex:codex-rescue` subagent") while running under
+  // `context: fork` — forked general-purpose subagents do not expose the
+  // `Agent` tool, so the fork fell back to `Skill` and re-entered this
+  // command. Pin the explicit transport and the inline (no-fork) execution.
+  assert.match(rescue, /subagent_type: "codex:codex-rescue"/);
+  assert.match(rescue, /do not call `Skill\(codex:codex-rescue\)`/i);
+  assert.doesNotMatch(rescue, /^context:\s*fork\b/m);
   assert.match(rescue, /--background\|--wait/);
   assert.match(rescue, /--resume\|--fresh/);
   assert.match(rescue, /--model <model\|spark>/);
@@ -102,7 +111,7 @@ test("rescue command absorbs continue semantics", () => {
   assert.match(rescue, /Continue current Codex thread/);
   assert.match(rescue, /Start a new Codex thread/);
   assert.match(rescue, /run the `codex:codex-rescue` subagent in the background/i);
-  assert.match(rescue, /default to foreground/i);
+  assert.match(rescue, /default to background/i);
   assert.match(rescue, /Do not forward them to `task`/i);
   assert.match(rescue, /`--model` and `--effort` are runtime-selection flags/i);
   assert.match(rescue, /Leave `--effort` unset unless the user explicitly asks for a specific reasoning effort/i);
@@ -167,9 +176,9 @@ test("result and cancel commands are exposed as deterministic runtime entrypoint
   const resultHandling = read("skills/codex-result-handling/SKILL.md");
 
   assert.match(result, /disable-model-invocation:\s*true/);
-  assert.match(result, /codex-companion\.mjs" result \$ARGUMENTS/);
+  assert.match(result, /codex-companion\.mjs" result "\$ARGUMENTS"/);
   assert.match(cancel, /disable-model-invocation:\s*true/);
-  assert.match(cancel, /codex-companion\.mjs" cancel \$ARGUMENTS/);
+  assert.match(cancel, /codex-companion\.mjs" cancel "\$ARGUMENTS"/);
   assert.match(resultHandling, /do not turn a failed or incomplete Codex run into a Claude-side implementation attempt/i);
   assert.match(resultHandling, /if Codex was never successfully invoked, do not generate a substitute answer at all/i);
 });
